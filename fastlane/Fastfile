@@ -1,0 +1,160 @@
+# Customise this file, documentation can be found here:
+# https://github.com/fastlane/fastlane/tree/master/docs
+# All available actions: https://github.com/fastlane/fastlane/blob/master/docs/Actions.md
+# can also be listed using the `fastlane actions` command
+
+# Change the syntax highlighting to Ruby
+# All lines starting with a # are ignored when running `fastlane`
+fastlane_require 'dotenv'
+
+# By default, fastlane will send which actions are used
+# No personal data is shared, more information on https://github.com/fastlane/enhancer
+# Uncomment the following line to opt out
+# opt_out_usage
+
+# If you want to automatically update fastlane if a new version is available:
+# update_fastlane
+
+# This is the minimum version number required.
+# Update this, if you use features of a newer version
+fastlane_version "2.101.0"
+
+default_platform :ios
+
+platform :ios do
+  before_all do
+    # ENV["SLACK_URL"] = "https://hooks.slack.com/services/..."
+    # cocoapods
+
+    Dotenv.overload '.env.secret'
+  end
+
+  desc "Runs all the tests"
+  lane :test do
+    scan
+  end
+
+  desc "Sync certs and provisioning"
+  lane :certs do
+    match(app_identifier: "net.baseballnumbers.ChartsDemo", readonly: true, force_for_new_devices: true)
+  end
+
+  # Builds ChartsDemo-iOS
+  #
+  #  options:
+  #    configuration: "Adhoc" or "Release" (default)
+  #    scheme       : "ChartsDemo-iOS"
+  #    bump         : if true, bump version patch number
+  #
+  private_lane :build do |options|
+
+    #xcversion(version: "~> 9.1.0")
+
+    configuration = options.fetch(:configuration, "Release")
+    scheme = options.fetch(:scheme, "ChartsDemo-iOS")
+    bump_version = options.fetch(:bump, true)
+
+    ensure_git_status_clean
+    git_pull
+    push_to_git_remote
+
+    # Automatically increment patch version number
+    if bump_version    
+        increment_version_number(bump_type: "patch") 
+    else
+        increment_build_number
+    end
+    commit_version_bump
+    push_to_git_remote
+
+    if configuration == "Adhoc"
+    	match(app_identifier: "net.baseballnumbers.ChartsDemo", type: "adhoc", force_for_new_devices: true) # more information: https://codesigning.guide
+    else
+      	match(app_identifier: "net.baseballnumbers.ChartsDemo", type: "appstore")
+    end
+
+    if configuration == "Adhoc"
+    	gym(scheme: scheme, configuration: configuration, export_options: {iCloudContainerEnvironment: 'Development'}) # Build your app - more options available
+    else
+    	gym(scheme: scheme, configuration: configuration, export_options: {iCloudContainerEnvironment: 'Production'}) # Build your app - more options available
+    end
+
+  end
+
+  # Adds new tag to git repo, commits and pushes
+  #
+  private_lane :tag do |options|
+
+    version_number = get_version_number(target: "ChartsDemo-iOS")
+    
+    add_git_tag(build_number: version_number)
+    push_to_git_remote
+    #sh "../../scripts/commit-bbdb.sh " + last_git_tag
+
+  end
+
+  desc "Ad-hoc distribution to S3"
+  private_lane :adhoc_s3_distro do
+      aws_s3(
+        access_key: ENV['S3_ACCESS_KEY'],               # Required from user (unless using aws_profile).
+        secret_access_key: ENV['S3_SECRET_ACCESS_KEY'], # Required from user (unless using aws_profile).
+        ipa: "ChartsDemo-iOS.ipa",
+        bucket: "bbdb",
+        app_directory: "charts-demo",
+        region: "us-east-1"
+      ) 
+  end
+
+  desc "Deploy a new version to the App Store."
+  lane :release do |options|
+
+    ensure_git_branch(branch: 'master')
+    build options
+    #snapshot
+    deliver(force: true)
+    # frameit
+    tag
+  end
+
+  desc "Deploy a new version to the App Store for TestFlight."
+  lane :beta do |options|
+
+    ensure_git_branch(branch: 'master')
+    build options
+    #snapshot
+    deliver(force: true)
+    # frameit
+    tag
+  end
+
+  desc "Deploy a new ad-hoc version to the S3."
+  lane :dev do |options|
+
+    options[:configuration] = "Adhoc"
+
+    # ensure_git_branch(branch: 'master')
+    build options
+    #snapshot
+    adhoc_s3_distro
+    # frameit
+    tag
+  end
+
+  after_all do |lane|
+    # This block is called, only if the executed lane was successful
+
+    # slack(
+    #   message: "Successfully deployed new App Update."
+    # )
+  end
+
+  error do |lane, exception|
+    # slack(
+    #   message: exception.message,
+    #   success: false
+    # )
+  end
+end
+
+# More information about multiple platforms in fastlane: https://github.com/fastlane/fastlane/blob/master/docs/Platforms.md
+# All available actions: https://github.com/fastlane/fastlane/blob/master/docs/Actions.md
