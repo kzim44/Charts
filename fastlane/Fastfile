@@ -89,7 +89,10 @@ platform :ios do
   #
   private_lane :tag do |options|
 
-    version_number = get_version_number(target: "ChartsDemo-iOS")
+    version_number = get_version_number(
+        xcodeproj: "./ChartsDemo-iOS/ChartsDemo-iOS.xcodeproj",
+	target: "ChartsDemo-iOS"
+    )
     
     add_git_tag(build_number: version_number)
     push_to_git_remote
