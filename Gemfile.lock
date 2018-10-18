@@ -219,7 +219,7 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
-  cocoapods (= 1.6.0.beta.1)
+  cocoapods (>= 1.6.0.beta.1)
   fastlane
   github_changelog_generator
   pry
