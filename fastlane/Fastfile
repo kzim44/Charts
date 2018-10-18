@@ -65,7 +65,8 @@ platform :ios do
         increment_build_number
     end
     commit_version_bump(
-         xcodeproj: "./ChartsDemo-iOS/ChartsDemo-iOS.xcodeproj"
+         xcodeproj: "./ChartsDemo-iOS/ChartsDemo-iOS.xcodeproj",
+         force: true
     )
     push_to_git_remote
 
