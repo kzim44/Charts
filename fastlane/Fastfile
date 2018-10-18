@@ -64,6 +64,7 @@ platform :ios do
     else
         increment_build_number
     end
+    git_add
     commit_version_bump(
          xcodeproj: "./ChartsDemo-iOS/ChartsDemo-iOS.xcodeproj",
          force: true
